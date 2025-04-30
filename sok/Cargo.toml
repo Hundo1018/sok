@@ -1,15 +1,31 @@
 [package]
 name = "sok"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "sok"
+path = "src/main.rs"
 
 [dependencies]
-env_logger = "0.11"
+cfg-if = "1"
+winit = { version = "0.29" }
+env_logger = "0.10"
 log = "0.4"
-parking_lot = "0.12"
-winit = "0.30"
-wgpu = "25"
-pollster = "0.4.0"
+wgpu = "25.0"
+pollster = "0.3"
 
-# [lib]
-# crate-type = ["cdylib","rlib"]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "1.0"
+wgpu = { version = "25.0", features = ["webgl"]}
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4.30"
+web-sys = { version = "0.3.69", features = [
+    "Document",
+    "Window",
+    "Element",
+]}
