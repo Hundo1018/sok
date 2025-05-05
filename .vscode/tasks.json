@@ -1,0 +1,44 @@
+{
+    "version": "2.0.0",
+    "tasks":[
+        {
+            "label": "build WASM",
+            "type":"shell",
+            "command": "wasm-pack build --target bundler",
+            "options": {
+                "cwd": "${workspaceFolder}/sok"
+            },
+            "isBackground": true,
+            "problemMatcher":["$tsc"]
+        },
+        {
+            "label":"copy pkg to sok-ui",
+            "type":"shell",
+            "command": "cp -r ${workspaceFolder}/sok/pkg ${workspaceFolder}/sok-ui/src/pkg",
+            "options": {
+                "cwd": "${workspaceFolder}/sok"
+            }
+        },
+        {
+            "label":"Start Vite",
+            "type":"shell",
+            "command": "npx vite --port=4000",
+            "options": {
+                "cwd": "${workspaceFolder}/sok-ui"
+            }
+        },
+        {
+            "label":"Show Embedded browser",
+            // "type" :
+        },
+        {
+            "label":"Full Dev workflow",
+            "dependsOn": [
+                "build WASM",
+                "copy pkg to sok-ui",
+                "Start Vite"
+            ],
+            "dependsOrder": "sequence"
+        }
+    ]
+}

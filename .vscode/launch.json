@@ -5,12 +5,25 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "lldb",
+            "name": "Run WASM + Vite Dev Server",
+            "type": "node",
             "request": "launch",
-            "name": "Debug",
-            "program": "${workspaceFolder}/<executable file>",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run","start"],
+            "cwd": "${workspaceFolder}/sok-ui",
+            "preLaunchTask": "Full Dev workflow",
+            "skipFiles": [
+                "<node_internals>/**",
+            ],
             "args": [],
-            "cwd": "${workspaceFolder}"
-        }
+        },
+        // {
+        //     "name": "Run WASM + Vite Dev Server + Embedded Browser",
+        //     "type": "chrome",
+        //     "request": "launch",
+        //     "url": "http://localhost:4000",
+        //     "webRoot": "${workspaceFolder}/sok-ui",
+        //     "cwd": "${workspaceFolder}/sok-ui",
+        // },
     ]
 }
