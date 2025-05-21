@@ -4,7 +4,7 @@ import './App.css'
 
 function App() {
   useEffect(() => { 
-    sok()
+    sok
   }, [])
   return (
     <div>

@@ -5,6 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Run WASM-bindgen",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run","start"],
+            "cwd": "${workspaceFolder}/sok-ui",
+            "preLaunchTask": "Full wasm bindgen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "args": []
+        },
+        {
             "name": "Run WASM + Vite Dev Server",
             "type": "node",
             "request": "launch",

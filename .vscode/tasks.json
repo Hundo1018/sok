@@ -1,55 +1,83 @@
 {
     "version": "2.0.0",
-    "tasks":[
+    "tasks": [
         {
-            "label":"clean wasm",
+            "label": "clean wasm",
             "type": "shell",
-            "command":"rm -r ./pkg",
+            "command": "rm -r ./pkg",
             "options": {
                 "cwd": "${workspaceFolder}/sok"
             }
         },
         {
             "label": "build WASM",
-            "type":"shell",
+            "type": "shell",
             "command": "wasm-pack build --target web --dev",
+            // "command": "wasm-bindgen --no-typescript --out-dir wasm --web",
             "options": {
                 "cwd": "${workspaceFolder}/sok"
             },
             "isBackground": true,
-            "problemMatcher":["$tsc"]
+            "problemMatcher": [
+                "$tsc"
+            ]
         },
         {
-            "label":"copy pkg to sok-ui",
-            "type":"shell",
+            "label": "copy pkg to sok-ui",
+            "type": "shell",
             "command": "cp -r -f ${workspaceFolder}/sok/pkg ${workspaceFolder}/sok-ui/src",
             "options": {
                 "cwd": "${workspaceFolder}/sok"
             }
         },
         {
-            "label":"link src to sok-ui",
+            "label": "link src to sok-ui",
             "type": "shell",
-            "command" :"ln -s -f ${workspaceFolder}/sok/src",
+            "command": "ln -s -f ${workspaceFolder}/sok/src",
             "options": {
                 "cwd": "${workspaceFolder}/sok-ui/src/pkg"
             }
-
         },
         {
-            "label":"Start Vite",
-            "type":"shell",
+            "label": "Start Vite",
+            "type": "shell",
             "command": "npx vite --port=4000",
             "options": {
                 "cwd": "${workspaceFolder}/sok-ui"
             }
         },
         {
-            "label":"Full Dev workflow",
+            "label": "Full Dev workflow",
             "dependsOn": [
                 "build WASM",
                 "copy pkg to sok-ui",
                 "link src to sok-ui",
+                "Start Vite"
+            ],
+            "dependsOrder": "sequence"
+        },
+        //
+        {
+            "label": "cargo build",
+            "type": "shell",
+            "command": "cargo build --release --target wasm32-unknown-unknown",
+            "options": {
+                "cwd": "${workspaceFolder}/sok"
+            }
+        },
+        {
+            "label": "wasm-bindgen",
+            "type": "shell",
+            "command": "wasm-bindgen --out-dir ${workspaceFolder}/sok-ui/src/pkg --web ./target/wasm32-unknown-unknown/release/sok.wasm",
+            "options": {
+                "cwd": "${workspaceFolder}/sok"
+            }
+        },
+        {
+            "label": "Full wasm bindgen",
+            "dependsOn": [
+                "cargo build",
+                "wasm-bindgen",
                 "Start Vite"
             ],
             "dependsOrder": "sequence"

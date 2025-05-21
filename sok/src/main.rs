@@ -1,4 +1,5 @@
 use sok::run;
-fn main() {
+
+pub fn main() {
     run();
 }
