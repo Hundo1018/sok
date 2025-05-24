@@ -12,8 +12,6 @@ use winit::{
 };
 
 struct WgpuApp {
-    #[allow(dead_code)]
-    instance: Arc<wgpu::Instance>,
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     _adapter: wgpu::Adapter,
@@ -103,16 +101,6 @@ impl WgpuApp {
         let caps = surface.get_capabilities(&adapter);
         log::debug!("caps ed");
 
-        // let config = wgpu::SurfaceConfiguration {
-        //     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        //     format: caps.formats[0],
-        //     width: size.width,
-        //     height: size.height,
-        //     present_mode: wgpu::PresentMode::Fifo,
-        //     alpha_mode: caps.alpha_modes[0],
-        //     view_formats: vec![],
-        //     desired_maximum_frame_latency: 2,
-        // };
 
         let config = surface
             .get_default_config(&adapter, size.width, size.height)
@@ -122,7 +110,6 @@ impl WgpuApp {
 
 
         Self {
-            instance: instance.into(),
             window,
             surface,
             _adapter: adapter,
@@ -201,11 +188,6 @@ impl WgpuApp {
     }
 }
 
-impl Drop for WgpuApp{
-    fn drop(&mut self) {
-        log::debug!("WgpuApp was Dropped!")
-    }
-}
 #[derive(Default)]
 struct WgpuAppHandler {
     app: Arc<Mutex<Option<WgpuApp>>>,
@@ -303,11 +285,6 @@ impl ApplicationHandler for WgpuAppHandler {
     }
 }
 
-impl Drop for WgpuAppHandler{
-    fn drop(&mut self) {
-        log::warn!("WgpuAppHandler was dropped!");
-    }
-}
 // #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
