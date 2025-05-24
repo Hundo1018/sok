@@ -2,7 +2,7 @@
 use wasm_bindgen::prelude::*;
 
 use parking_lot::Mutex;
-use std::{sync::Arc};
+use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -11,9 +11,9 @@ use winit::{
     window::{Window, WindowId},
 };
 
-
 struct WgpuApp {
-    /// 避免窗口被释放
+    #[allow(dead_code)]
+    instance: Arc<wgpu::Instance>,
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
     _adapter: wgpu::Adapter,
@@ -120,7 +120,9 @@ impl WgpuApp {
 
         surface.configure(&device, &config);
 
+
         Self {
+            instance: instance.into(),
             window,
             surface,
             _adapter: adapter,
@@ -199,6 +201,11 @@ impl WgpuApp {
     }
 }
 
+impl Drop for WgpuApp{
+    fn drop(&mut self) {
+        log::debug!("WgpuApp was Dropped!")
+    }
+}
 #[derive(Default)]
 struct WgpuAppHandler {
     app: Arc<Mutex<Option<WgpuApp>>>,
@@ -223,37 +230,30 @@ impl ApplicationHandler for WgpuAppHandler {
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
 
         cfg_if::cfg_if! {
-            if #[cfg(target_arch="wasm32")]{
+                    if #[cfg(target_arch="wasm32")]{
+                        let app = self.app.clone();
+                        let missed_resize = self.missed_resize.clone();
 
+                        wasm_bindgen_futures::spawn_local(async move {
+                            let window_cloned = window.clone();
 
-                let app = self.app.clone();
-                let missed_resize = self.missed_resize.clone();
+                            let wgpu_app = WgpuApp::new(window).await;
+                            log::debug!("wgpu_app created!");
+                            {
 
-                wasm_bindgen_futures::spawn_local(async move {
-                    let window_cloned = window.clone();
+                                let mut app = app.lock();
+                                *app = Some(wgpu_app);
 
-                    let wgpu_app = WgpuApp::new(window).await;
-                    log::debug!("wgpu_app created!");
-                    {
-
-                        let mut app = app.lock();
-                        *app = Some(wgpu_app);
-
-                        //如果错失了窗口大小变化事件，则补上
-                        if let Some(resize) = *missed_resize.lock() {
-                            app.as_mut().unwrap().set_window_resized(resize);
-                            window_cloned.request_redraw();
-                        }
-                        log::debug!("end");
+                                //如果错失了窗口大小变化事件，则补上
+                                if let Some(resize) = *missed_resize.lock() {
+                                    app.as_mut().unwrap().set_window_resized(resize);
+                                    window_cloned.request_redraw();
+                                }
+                                log::debug!("end");
+                            }
+                        });
                     }
-                });
-
-            }
-            else{
-                log::debug!("wgpu_app created! but... imposible!!");
-
-            }
-        }
+                }
     }
 
     fn window_event(
@@ -303,15 +303,17 @@ impl ApplicationHandler for WgpuAppHandler {
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+impl Drop for WgpuAppHandler{
+    fn drop(&mut self) {
+        log::warn!("WgpuAppHandler was dropped!");
+    }
+}
+// #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
-
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");
 
-    wasm_bindgen_futures::spawn_local(async {
-        let event_loop = EventLoop::new().unwrap();
-        let mut app = WgpuAppHandler::default();
-        event_loop.run_app(&mut app);
-    });
+    let event_loop = EventLoop::new().unwrap();
+    let mut app = WgpuAppHandler::default();
+    event_loop.run_app(&mut app);
 }

@@ -1,11 +1,29 @@
-import  { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import sok from './pkg/sok'
 import './App.css'
 
 function App() {
+  const initialized = useRef(false);
+
   useEffect(() => { 
-    sok
-  }, [])
+    // Prevent multiple initializations
+    if (!initialized.current) {
+      initialized.current = true;
+      try {
+        sok();
+      } catch (error) {
+        console.error('Error initializing WASM module:', error);
+        initialized.current = false; // Allow retry on error
+      }
+    }
+
+    // Cleanup function to handle component unmount
+    return () => {
+      // If your WASM module has a cleanup function, call it here
+      // Example: if (window.cleanup_sok) window.cleanup_sok();
+    };
+  }, []) // Empty dependency array ensures this runs only once
+
   return (
     <div>
       <canvas id="wasm-sok" width={800} height={600}></canvas>

@@ -1,7 +1,7 @@
 [package]
 name = "sok"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -15,18 +15,28 @@ cfg-if = "1"
 winit = { version = "0.30" }
 log = "0.4"
 wgpu = "25.0"
-pollster = "0.4"
+# pollster = "0.4"
 parking_lot = "0.12"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
 console_log = "1.0"
-wgpu = { version = "25.0"}
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
-fern = "0.7"
 web-sys = { version = "0.3.77", features = [
     "Document",
-    "Window",
     "Element",
+    "HtmlElement",
+    "Window",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
 ]}
+
+# 針對 wasm32 的優化設置
+[profile.release]
+lto = true
+opt-level = "s"
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1
