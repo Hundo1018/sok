@@ -1,11 +1,13 @@
+use wasm_bindgen::convert::IntoWasmAbi;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 use parking_lot::Mutex;
 use std::sync::Arc;
+use web_sys::{js_sys::Function, HtmlCanvasElement};
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
+    dpi::{PhysicalPosition, PhysicalSize},
     event::*,
     event_loop::{ActiveEventLoop, EventLoop},
     window::{Window, WindowId},
@@ -39,24 +41,26 @@ impl WgpuApp {
                 .and_then(|win| win.document())
                 .map(|doc| {
                     let _ = canvas.set_attribute("id", "wasm-sok");
-                    match doc.get_element_by_id("wasm-sok") {
+                    match doc.get_element_by_id("wasm-container") {
                         Some(dst) => {
                             let _ = dst.append_child(canvas.as_ref());
                         }
                         None => {
                             let container = doc.create_element("div").unwrap();
-                            let _ = container.set_attribute("id", "wasm-sok");
+                            let _ = container.set_attribute("id", "wasm-container");
                             let _ = container.append_child(canvas.as_ref());
                             doc.body().map(|body| body.append_child(container.as_ref()));
                         }
                     };
                 })
                 .expect("Couldn't append canvas to document body.");
+
+            // canvas.add_event_listener_with_callback_and_bool(type_, listener, options)
             // make sure forcus
             canvas.set_tab_index(0);
 
-            //
             let style = canvas.style();
+
             style.set_property("outline", "none").unwrap();
             canvas.focus().expect("canvs cannot get focus");
         }
@@ -81,8 +85,6 @@ impl WgpuApp {
             })
             .await
             .unwrap();
-        // .expect("WebGPU adapter request failed. Check browser support or configuration.");
-        // .unwrap();
         log::debug!("adaptered");
 
         //real device and command queue
@@ -101,14 +103,11 @@ impl WgpuApp {
         let caps = surface.get_capabilities(&adapter);
         log::debug!("caps ed");
 
-
         let config = surface
             .get_default_config(&adapter, size.width, size.height)
             .unwrap();
 
         surface.configure(&device, &config);
-
-
         Self {
             window,
             surface,
@@ -120,6 +119,7 @@ impl WgpuApp {
             size_changed: false,
         }
     }
+
     /// 记录窗口大小已发生变化
     ///
     /// # NOTE:
@@ -148,7 +148,7 @@ impl WgpuApp {
             return Ok(());
         }
         self.resize_surface_if_needed();
-
+        log::debug!("rend!");
         // wait for surface to provide a new surfaceTexture
         let output = self.surface.get_current_texture()?;
 
@@ -186,6 +186,32 @@ impl WgpuApp {
         output.present();
         Ok(())
     }
+
+    fn keyboard_input(&mut self, _event: &KeyEvent) -> bool {
+        false
+    }
+
+    fn mouse_click(&mut self, _state: ElementState, _button: MouseButton) -> bool {
+        false
+    }
+
+    fn mouse_wheel(&mut self, _delta: MouseScrollDelta, _phase: TouchPhase) -> bool {
+        false
+    }
+
+    fn cursor_move(&mut self, position: PhysicalPosition<f64>) -> bool {
+        log::debug!("{:?}",position);
+        true
+    }
+
+    /// mouse move/touch
+    fn device_input(&mut self, _event: &DeviceEvent) -> bool {
+        false
+    }
+
+    fn update(&mut self) {
+        //
+    }
 }
 
 #[derive(Default)]
@@ -212,30 +238,31 @@ impl ApplicationHandler for WgpuAppHandler {
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
 
         cfg_if::cfg_if! {
-                    if #[cfg(target_arch="wasm32")]{
-                        let app = self.app.clone();
-                        let missed_resize = self.missed_resize.clone();
+            if #[cfg(target_arch="wasm32")]{
+                let app = self.app.clone();
+                let missed_resize = self.missed_resize.clone();
 
-                        wasm_bindgen_futures::spawn_local(async move {
-                            let window_cloned = window.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let window_cloned = window.clone();
 
-                            let wgpu_app = WgpuApp::new(window).await;
-                            log::debug!("wgpu_app created!");
-                            {
+                    let wgpu_app = WgpuApp::new(window).await;
 
-                                let mut app = app.lock();
-                                *app = Some(wgpu_app);
+                    log::debug!("wgpu_app created!");
+                    {
 
-                                //如果错失了窗口大小变化事件，则补上
-                                if let Some(resize) = *missed_resize.lock() {
-                                    app.as_mut().unwrap().set_window_resized(resize);
-                                    window_cloned.request_redraw();
-                                }
-                                log::debug!("end");
-                            }
-                        });
+                        let mut app = app.lock();
+                        *app = Some(wgpu_app);
+
+                        //如果错失了窗口大小变化事件，则补上
+                        if let Some(resize) = *missed_resize.lock() {
+                            app.as_mut().unwrap().set_window_resized(resize);
+                            window_cloned.request_redraw();
+                        }
+                        log::debug!("end");
                     }
-                }
+                });
+            }
+        }
     }
 
     fn window_event(
@@ -244,6 +271,7 @@ impl ApplicationHandler for WgpuAppHandler {
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        log::debug!("window event {:?} {:?} {:?}", event_loop, window_id, event);
         let mut app = self.app.lock();
         if app.as_ref().is_none() {
             // 如果 app 还没有初始化完成，则记录错失的窗口事件
@@ -280,12 +308,25 @@ impl ApplicationHandler for WgpuAppHandler {
                 }
                 app.window.request_redraw();
             }
+            WindowEvent::KeyboardInput {
+                device_id,
+                event,
+                is_synthetic,
+            } => {
+                log::debug!("{:?},{}", event.logical_key, is_synthetic);
+            }
+            WindowEvent::CursorMoved {
+                device_id,
+                position,
+            } => {
+                log::debug!("{:?}", position);
+            }
             _ => {}
         }
     }
 }
 
-// #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Debug).expect("Couldn't initialize logger");

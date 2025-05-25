@@ -1,11 +1,9 @@
 import { useEffect, useRef } from 'react'
-import sok from './pkg/sok'
-import './App.css'
-
+import sok from './pkg/sok';
 function App() {
   const initialized = useRef(false);
 
-  useEffect(() => { 
+  useEffect(() => {
     // Prevent multiple initializations
     if (!initialized.current) {
       initialized.current = true;
@@ -25,8 +23,7 @@ function App() {
   }, []) // Empty dependency array ensures this runs only once
 
   return (
-    <div>
-      <canvas id="wasm-sok" width={800} height={600}></canvas>
+    <div id="wasm-container">
     </div>
   );
 }
