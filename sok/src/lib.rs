@@ -1,3 +1,5 @@
+mod profiler;
+use profiler::Profiler;
 use wasm_bindgen::convert::IntoWasmAbi;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -22,6 +24,7 @@ struct WgpuApp {
     config: wgpu::SurfaceConfiguration,
     size: PhysicalSize<u32>,
     size_changed: bool,
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 /// WGPU's Instance will be in here
@@ -47,6 +50,7 @@ impl WgpuApp {
                         }
                         None => {
                             let container = doc.create_element("div").unwrap();
+
                             let _ = container.set_attribute("id", "wasm-container");
                             let _ = container.append_child(canvas.as_ref());
                             doc.body().map(|body| body.append_child(container.as_ref()));
@@ -55,12 +59,12 @@ impl WgpuApp {
                 })
                 .expect("Couldn't append canvas to document body.");
 
-            // canvas.add_event_listener_with_callback_and_bool(type_, listener, options)
             // make sure forcus
             canvas.set_tab_index(0);
 
             let style = canvas.style();
-
+            let _ = style.set_property("width", "100vw");
+            let _ = style.set_property("height", "100vh");
             style.set_property("outline", "none").unwrap();
             canvas.focus().expect("canvs cannot get focus");
         }
@@ -103,10 +107,68 @@ impl WgpuApp {
         let caps = surface.get_capabilities(&adapter);
         log::debug!("caps ed");
 
-        let config = surface
-            .get_default_config(&adapter, size.width, size.height)
-            .unwrap();
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: caps.formats[0],
+            width: size.width,
+            height: size.height,
+            present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
 
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
+        // let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[],
+                push_constant_ranges: &[],
+            });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                //vertex shaer
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                //fragment shader
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState { 
+                count: 1,
+                 mask: !0,
+                  alpha_to_coverage_enabled: false },
+            multiview: None,
+            cache: None,
+        });
         surface.configure(&device, &config);
         Self {
             window,
@@ -117,6 +179,7 @@ impl WgpuApp {
             config,
             size,
             size_changed: false,
+            render_pipeline,
         }
     }
 
@@ -148,7 +211,6 @@ impl WgpuApp {
             return Ok(());
         }
         self.resize_surface_if_needed();
-        log::debug!("rend!");
         // wait for surface to provide a new surfaceTexture
         let output = self.surface.get_current_texture()?;
 
@@ -163,7 +225,7 @@ impl WgpuApp {
             });
 
         {
-            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -180,6 +242,8 @@ impl WgpuApp {
                 })],
                 ..Default::default()
             });
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw(0..3, 0..1);
         }
         // submit can accept any parameter impl trait IntoIter
         self.queue.submit(Some(encoder.finish()));
@@ -200,7 +264,6 @@ impl WgpuApp {
     }
 
     fn cursor_move(&mut self, position: PhysicalPosition<f64>) -> bool {
-        log::debug!("{:?}",position);
         true
     }
 
@@ -224,6 +287,7 @@ struct WgpuAppHandler {
     /// 当 app 初始化完成后会调用 `set_window_resized` 方法来补上错失的窗口大小变化事件。
     #[allow(dead_code)]
     missed_resize: Arc<Mutex<Option<PhysicalSize<u32>>>>,
+    profiler: Profiler,
 }
 impl ApplicationHandler for WgpuAppHandler {
     /// 恢复事件
@@ -248,18 +312,18 @@ impl ApplicationHandler for WgpuAppHandler {
                     let wgpu_app = WgpuApp::new(window).await;
 
                     log::debug!("wgpu_app created!");
-                    {
 
-                        let mut app = app.lock();
-                        *app = Some(wgpu_app);
 
-                        //如果错失了窗口大小变化事件，则补上
-                        if let Some(resize) = *missed_resize.lock() {
-                            app.as_mut().unwrap().set_window_resized(resize);
-                            window_cloned.request_redraw();
-                        }
-                        log::debug!("end");
+                    let mut app = app.lock();
+                    *app = Some(wgpu_app);
+
+                    //如果错失了窗口大小变化事件，则补上
+                    if let Some(resize) = *missed_resize.lock() {
+                        app.as_mut().unwrap().set_window_resized(resize);
+                        window_cloned.request_redraw();
                     }
+                    log::debug!("end");
+
                 });
             }
         }
@@ -271,10 +335,8 @@ impl ApplicationHandler for WgpuAppHandler {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        log::debug!("window event {:?} {:?} {:?}", event_loop, window_id, event);
         let mut app = self.app.lock();
         if app.as_ref().is_none() {
-            // 如果 app 还没有初始化完成，则记录错失的窗口事件
             if let WindowEvent::Resized(physical_size) = event {
                 if physical_size.width > 0 && physical_size.height > 0 {
                     let mut missed_resize = self.missed_resize.lock();
@@ -295,10 +357,7 @@ impl ApplicationHandler for WgpuAppHandler {
                 }
             }
             WindowEvent::RedrawRequested => {
-                // redraw event of surface
-                log::debug!("redraw!");
                 app.window.pre_present_notify();
-
                 match app.render() {
                     Ok(_) => {}
                     // when lost context of suface
@@ -306,6 +365,8 @@ impl ApplicationHandler for WgpuAppHandler {
                     // other error like exp, should be resolve in next frame
                     Err(e) => eprintln!("{e:?}"),
                 }
+                let fps = self.profiler.update();
+                log::debug!("fps:{:?}",fps);
                 app.window.request_redraw();
             }
             WindowEvent::KeyboardInput {
@@ -313,13 +374,13 @@ impl ApplicationHandler for WgpuAppHandler {
                 event,
                 is_synthetic,
             } => {
-                log::debug!("{:?},{}", event.logical_key, is_synthetic);
+                // log::debug!("{:?},{}", event.logical_key, is_synthetic);
             }
             WindowEvent::CursorMoved {
                 device_id,
                 position,
             } => {
-                log::debug!("{:?}", position);
+                // log::debug!("{:?}", position);
             }
             _ => {}
         }
