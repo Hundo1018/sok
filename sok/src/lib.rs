@@ -118,8 +118,10 @@ impl WgpuApp {
             desired_maximum_frame_latency: 2,
         };
 
+        //load shader from here 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
+            //set source with path
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
         // let shader = device.create_shader_module(include_wgsl!("shader.wgsl"));
@@ -162,10 +164,11 @@ impl WgpuApp {
                 conservative: false,
             },
             depth_stencil: None,
-            multisample: wgpu::MultisampleState { 
+            multisample: wgpu::MultisampleState {
                 count: 1,
-                 mask: !0,
-                  alpha_to_coverage_enabled: false },
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
             multiview: None,
             cache: None,
         });
@@ -232,9 +235,9 @@ impl WgpuApp {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
+                            r: 0.15,
+                            g: 0.10,
+                            b: 0.15,
                             a: 1.0,
                         }),
                         store: wgpu::StoreOp::Store,
@@ -366,7 +369,7 @@ impl ApplicationHandler for WgpuAppHandler {
                     Err(e) => eprintln!("{e:?}"),
                 }
                 let fps = self.profiler.update();
-                log::debug!("fps:{:?}",fps);
+                log::debug!("fps:{:?}", fps);
                 app.window.request_redraw();
             }
             WindowEvent::KeyboardInput {
