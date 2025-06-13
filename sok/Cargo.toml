@@ -17,13 +17,14 @@ log = "0.4"
 wgpu = "25.0"
 parking_lot = "0.12"
 glam = "*"
+bytemuck = { version = "1.19", features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.7"
 console_log = "1.0"
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
-instant = {version = "0.1",features = ["wasm-bindgen"]}
+instant = { version = "0.1", features = ["wasm-bindgen"] }
 web-sys = { version = "0.3.77", features = [
     "Document",
     "Element",

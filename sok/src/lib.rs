@@ -3,7 +3,7 @@ use profiler::Profiler;
 use wasm_bindgen::convert::IntoWasmAbi;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-
+use wgpu::util::DeviceExt;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use web_sys::{js_sys::Function, HtmlCanvasElement};
@@ -15,6 +15,41 @@ use winit::{
     window::{Window, WindowId},
 };
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+const VERTICES: &[Vertex] = &[
+    //counter-clockwise
+    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0]},
+    Vertex { position: [-0.5, -0.5, 0.0], color:[0.0, 1.0, 0.0]},
+    Vertex { position: [0.5, -0.5, 0.0], color:[ 0.0, 0.0,1.0]},
+];
+
+impl Vertex  {
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a>{
+        wgpu::VertexBufferLayout{
+            array_stride: core::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute{
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute{
+                    offset: core::mem::size_of::<[f32;3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                }
+            ]
+        }
+    }
+}
+
 struct WgpuApp {
     window: Arc<Window>,
     surface: wgpu::Surface<'static>,
@@ -25,6 +60,7 @@ struct WgpuApp {
     size: PhysicalSize<u32>,
     size_changed: bool,
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
 }
 
 /// WGPU's Instance will be in here
@@ -118,7 +154,7 @@ impl WgpuApp {
             desired_maximum_frame_latency: 2,
         };
 
-        //load shader from here 
+        //load shader from here
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             //set source with path
@@ -141,7 +177,10 @@ impl WgpuApp {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
-                buffers: &[],
+                buffers: &[
+                    //my Vertex Buffer
+                    Vertex::desc(),
+                ],
             },
             fragment: Some(wgpu::FragmentState {
                 //fragment shader
@@ -172,6 +211,39 @@ impl WgpuApp {
             multiview: None,
             cache: None,
         });
+        
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor{
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
+
+        //
+        wgpu::VertexBufferLayout {
+            //what size per vertex
+            array_stride: core::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            //vertex or instance in buffer
+            step_mode: wgpu::VertexStepMode::Vertex,
+            //layout of each attribute, in this case is struct Vertex 
+            attributes: &[
+                wgpu::VertexAttribute{
+                    //offset at first
+                    offset: 0,
+                    //in .wgsl, it map to @location(n), here is @location(0)
+                    shader_location: 0,
+                    //float32x3 = vec3f
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute{
+                    offset: core::mem::size_of::<[f32;3]>() as wgpu::BufferAddress,
+                    shader_location:1 ,
+                    format: wgpu::VertexFormat::Float32x3,
+                }
+            ]
+        };
+
         surface.configure(&device, &config);
         Self {
             window,
@@ -183,6 +255,7 @@ impl WgpuApp {
             size,
             size_changed: false,
             render_pipeline,
+            vertex_buffer,
         }
     }
 
@@ -246,6 +319,8 @@ impl WgpuApp {
                 ..Default::default()
             });
             render_pass.set_pipeline(&self.render_pipeline);
+            //TODO: describe this line
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.draw(0..3, 0..1);
         }
         // submit can accept any parameter impl trait IntoIter
